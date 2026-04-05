@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables – never commit secrets
+.env.local
+.env.*.local
+.env
+
+# Vite / TS build info
+*.tsbuildinfo
+node_modules/.tmp/
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
