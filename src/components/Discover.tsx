@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchBar } from "../components/SearchBar";
-import { CategoryPill } from "../components/CategoryPill";
+// import { CategoryPill } from "../components/CategoryPill";
 import { ProviderCard } from "../components/ProviderCard";
 import { MOCK_CATEGORIES, MOCK_PROVIDERS } from "../utilities/mockData";
 import { useAppContext } from "../hooks/useAppContext";

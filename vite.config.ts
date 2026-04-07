@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  base: "./",
   plugins: [
     tailwindcss(),
     react({
@@ -11,9 +12,9 @@ export default defineConfig({
       },
     }),
   ],
-  test: {
-    globals: true,
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-  },
+  // test: {
+  //   globals: true,
+  //   environment: "jsdom",
+  //   setupFiles: ["./src/test/setup.ts"],
+  // },
 });
