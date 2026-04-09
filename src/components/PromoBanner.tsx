@@ -1,85 +1,34 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
-const BANNERS = [
-  {
-    tag: "Limited Time",
-    headline: "Up to 40% Off",
-    sub: "Top-rated home services",
-    cta: "Book Now",
-    route: "/request",
-    from: "from-blue-500",
-    to: "to-blue-700",
-    icon: "🔧",
-  },
-  {
-    tag: "New Providers",
-    headline: "12 New Pros",
-    sub: "Just joined your area",
-    cta: "Discover",
-    route: "/discover",
-    from: "from-violet-500",
-    to: "to-purple-700",
-    icon: "⭐",
-  },
-  {
-    tag: "Fast Response",
-    headline: "Emergency Help",
-    sub: "Available 24/7 near you",
-    cta: "Get Help",
-    route: "/request",
-    from: "from-rose-500",
-    to: "to-red-700",
-    icon: "🚨",
-  },
+const PROMOS = [
+  { bg: "from-amber-400 to-orange-500", emoji: "⚡", title: "Fast & Reliable", sub: "Pros respond within 2 hours" },
+  { bg: "from-emerald-400 to-teal-500", emoji: "🛡️", title: "Vetted Pros", sub: "All businesses are verified" },
+  { bg: "from-blue-400 to-indigo-500", emoji: "💳", title: "Pay on Completion", sub: "Only pay when the job's done" },
 ];
 
 export const PromoBanner = () => {
-  const navigate = useNavigate();
-  const [active, setActive] = useState(0);
-  const banner = BANNERS[active];
+  const [idx, setIdx] = useState(0);
+  const promo = PROMOS[idx];
 
   return (
-    <div>
-      <div
-        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${banner.from} ${banner.to} p-6 min-h-[140px] flex items-center transition-all duration-300`}
-      >
-        {/* Decorative circles */}
-        <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10" />
-        <div className="absolute -right-4 -bottom-10 w-32 h-32 rounded-full bg-white/10" />
-        <div className="absolute right-20 top-4 w-16 h-16 rounded-full bg-white/10" />
-
-        <div className="relative z-10 flex-1">
-          <p className="text-white/80 text-sm font-medium mb-0.5">{banner.tag}</p>
-          <h2 className="text-white font-bold text-2xl leading-tight mb-4">
-            {banner.headline}<br />
-            <span className="text-base font-medium text-white/80">{banner.sub}</span>
-          </h2>
-          <button
-            onClick={() => navigate(banner.route)}
-            className="bg-gray-900/80 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-900 transition-colors"
-          >
-            {banner.cta}
-          </button>
-        </div>
-
-        {/* Icon */}
-        <div className="absolute right-6 bottom-4 text-7xl opacity-20 select-none">
-          {banner.icon}
-        </div>
+    <div
+      className={`bg-gradient-to-r ${promo.bg} rounded-2xl px-5 py-4 flex items-center gap-3 cursor-pointer relative overflow-hidden`}
+      onClick={() => setIdx((prev) => (prev + 1) % PROMOS.length)}
+    >
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
+        <div className="absolute -left-2 -bottom-4 w-16 h-16 rounded-full bg-white" />
       </div>
-
-      {/* Dots */}
-      <div className="flex justify-center gap-1.5 mt-2.5">
-        {BANNERS.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setActive(i)}
-            className={`h-1.5 rounded-full transition-all ${
-              i === active ? "w-5 bg-blue-500" : "w-1.5 bg-gray-300"
-            }`}
-            aria-label={`Banner ${i + 1}`}
-          />
+      <div className="w-10 h-10 rounded-2xl bg-white/25 flex items-center justify-center flex-shrink-0">
+        <span className="text-xl">{promo.emoji}</span>
+      </div>
+      <div className="flex-1">
+        <p className="text-white font-black text-sm">{promo.title}</p>
+        <p className="text-white/80 text-xs mt-0.5">{promo.sub}</p>
+      </div>
+      <div className="flex gap-1">
+        {PROMOS.map((_, i) => (
+          <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === idx ? "bg-white" : "bg-white/40"}`} />
         ))}
       </div>
     </div>

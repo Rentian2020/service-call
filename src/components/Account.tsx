@@ -2,82 +2,18 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { signInWithGoogle, signOut } from "../services/authService";
-import { getStatusColor, getStatusLabel, MOCK_PROVIDERS } from "../utilities/mockData";
+import { getStatusColor, getStatusLabel, formatCurrency } from "../utilities/mockData";
 import { useAppContext } from "../hooks/useAppContext";
 import type { ServiceRequestStatus } from "../types";
 
-const MOCK_REQUESTS = [
-  {
-    id: "r1",
-    category: "Plumbing",
-    description: "Burst pipe under kitchen sink",
-    status: "in_progress" as ServiceRequestStatus,
-    provider: MOCK_PROVIDERS[0],
-    date: "Apr 3, 2026",
-    estimatedCost: 170,
-  },
-  {
-    id: "r2",
-    category: "Electricity",
-    description: "Panel upgrade for home office",
-    status: "completed" as ServiceRequestStatus,
-    provider: MOCK_PROVIDERS[1],
-    date: "Mar 28, 2026",
-    estimatedCost: 285,
-  },
-  {
-    id: "r3",
-    category: "Cleaning",
-    description: "Post-renovation deep clean",
-    status: "pending" as ServiceRequestStatus,
-    provider: null,
-    date: "Apr 5, 2026",
-    estimatedCost: undefined,
-  },
-  {
-    id: "r4",
-    category: "HVAC",
-    description: "AC unit not cooling properly",
-    status: "accepted" as ServiceRequestStatus,
-    provider: MOCK_PROVIDERS[5],
-    date: "Apr 4, 2026",
-    estimatedCost: 220,
-  },
-  {
-    id: "r5",
-    category: "Painting",
-    description: "Interior living room repaint — two coats",
-    status: "completed" as ServiceRequestStatus,
-    provider: MOCK_PROVIDERS[4],
-    date: "Mar 15, 2026",
-    estimatedCost: 390,
-  },
-  {
-    id: "r6",
-    category: "Locksmith",
-    description: "Front door lock replacement after break-in attempt",
-    status: "en_route" as ServiceRequestStatus,
-    provider: MOCK_PROVIDERS[9],
-    date: "Apr 4, 2026",
-    estimatedCost: 120,
-  },
-];
-
 const PROGRESS_STEPS: ServiceRequestStatus[] = [
-  "pending",
-  "accepted",
-  "en_route",
-  "in_progress",
-  "completed",
+  "pending", "accepted", "inspection", "quote_provided", "in_progress", "completed",
 ];
-
-const getStepIndex = (status: ServiceRequestStatus) =>
-  PROGRESS_STEPS.indexOf(status);
 
 export const Account = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const { bookmarked } = useAppContext();
+  const { bookmarked, requests, providers, updateRequest, addNotification } = useAppContext();
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"active" | "completed">("active");
@@ -85,280 +21,290 @@ export const Account = () => {
   const handleSignIn = async () => {
     setSigningIn(true);
     setError(null);
-    try {
-      await signInWithGoogle();
-    } catch {
-      setError("Sign in failed. Please try again.");
-    } finally {
-      setSigningIn(false);
-    }
+    try { await signInWithGoogle(); }
+    catch { setError("Sign in failed. Please try again."); }
+    finally { setSigningIn(false); }
   };
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch {
-      setError("Sign out failed.");
-    }
+    try { await signOut(); } catch {}
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-8 pb-24">
-        <div className="w-20 h-20 rounded-3xl bg-blue-500 flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
-          <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-          </svg>
+      <div className="page-scroll">
+        {/* Customer Hero */}
+        <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 safe-top px-5 pb-8 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">👤</span>
+          </div>
+          <span className="role-badge-customer mb-3 inline-block">Customer Portal</span>
+          <h1 className="text-2xl font-black text-white mt-2">Your Account</h1>
+          <p className="text-blue-100 text-sm mt-2">Sign in to track jobs, manage bookings, and chat with pros.</p>
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            {[["📍", "Find Pros"], ["📋", "Track Jobs"], ["💬", "Chat"]].map(([icon, label]) => (
+              <div key={label} className="bg-white/10 rounded-xl py-3">
+                <p className="text-xl mb-1">{icon}</p>
+                <p className="text-xs text-blue-100 font-semibold">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Welcome to ServiceCall</h1>
-        <p className="text-sm text-gray-500 text-center mb-10 leading-relaxed">
-          Sign in to book services, track your jobs, and connect with local professionals.
-        </p>
 
-        {error && (
-          <p className="text-sm text-red-500 mb-4 text-center">{error}</p>
-        )}
-
-        <button
-          onClick={handleSignIn}
-          disabled={signingIn}
-          className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 rounded-2xl py-4 shadow-sm text-sm font-semibold text-gray-800 transition-transform active:scale-[0.98] mb-4"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-          </svg>
-          {signingIn ? "Signing in..." : "Continue with Google"}
-        </button>
-
-        <p className="text-xs text-gray-400 text-center">
-          By signing in, you agree to our Terms of Service and Privacy Policy
-        </p>
+        <div className="px-5 pt-6 space-y-3">
+          <button
+            onClick={handleSignIn}
+            disabled={signingIn}
+            className="w-full bg-blue-500 text-white font-black py-4 rounded-2xl text-sm shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform"
+          >
+            {signingIn ? "Signing in…" : "Sign In with Google"}
+          </button>
+          {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+          <div className="relative flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+          <button
+            onClick={() => navigate("/business")}
+            className="w-full bg-white border-2 border-violet-200 text-violet-600 font-bold py-4 rounded-2xl text-sm active:bg-violet-50 transition-colors"
+          >
+            🏢 I'm a Business Owner
+          </button>
+        </div>
       </div>
     );
   }
 
-  const activeRequests = MOCK_REQUESTS.filter(
-    (r) => r.status !== "completed" && r.status !== "cancelled"
-  );
-  const completedRequests = MOCK_REQUESTS.filter(
-    (r) => r.status === "completed" || r.status === "cancelled"
-  );
+  const userRequests = requests.filter((r) => r.userId === user.uid);
+  const activeRequests = userRequests.filter((r) => r.status !== "completed" && r.status !== "cancelled");
+  const completedRequests = userRequests.filter((r) => r.status === "completed" || r.status === "cancelled");
   const displayRequests = activeTab === "active" ? activeRequests : completedRequests;
 
+  const handleAcceptQuote = (requestId: string) => {
+    updateRequest(requestId, { status: "in_progress", quoteAccepted: true });
+    addNotification({
+      userId: user.uid,
+      title: "Quote Accepted",
+      body: "You've accepted the quote. The job is now in progress.",
+      read: false,
+      requestId,
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
-      <div className="bg-white px-5 pt-12 pb-6">
-        <div className="flex items-center gap-4">
-          {user.photoURL ? (
-            <img
-              src={user.photoURL}
-              alt={user.displayName ?? "User"}
-              className="w-14 h-14 rounded-full object-cover border-2 border-blue-100"
-            />
-          ) : (
-            <div className="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center">
-              <span className="text-xl font-bold text-white">
-                {user.displayName?.[0]?.toUpperCase() ?? "U"}
-              </span>
+    <div className="page-scroll">
+      {/* Profile Header */}
+      <div className="bg-gradient-to-br from-blue-500 to-cyan-500 safe-top px-5 pb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            {user.photoURL ? (
+              <img src={user.photoURL} alt="avatar" className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white/40" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                <span className="text-2xl font-black text-white">{(user.displayName ?? user.email ?? "U")[0].toUpperCase()}</span>
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="font-black text-white text-base">{user.displayName ?? "User"}</p>
+                <span className="role-badge-customer">Customer</span>
+              </div>
+              <p className="text-blue-100 text-xs">{user.email}</p>
             </div>
-          )}
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">
-              {user.displayName ?? "User"}
-            </h1>
-            <p className="text-sm text-gray-500">{user.email}</p>
           </div>
+          <button
+            onClick={handleSignOut}
+            className="bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-xl"
+          >
+            Sign Out
+          </button>
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-4 mt-5 bg-gray-50 rounded-2xl p-4">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-3 gap-2">
           {[
-            { label: "Jobs Done", value: String(completedRequests.length) },
-            { label: "In Progress", value: String(activeRequests.length) },
-            { label: "Saved", value: String(bookmarked.size) },
-          ].map(({ label, value }) => (
-            <div key={label} className="flex-1 text-center">
-              <p className="text-xl font-bold text-gray-900">{value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+            { label: "Active Jobs", value: activeRequests.length, icon: "🔧" },
+            { label: "Completed", value: completedRequests.length, icon: "✅" },
+            { label: "Saved", value: bookmarked.size, icon: "🔖" },
+          ].map(({ label, value, icon }) => (
+            <div key={label} className="bg-white/15 rounded-xl py-2.5 px-3 text-center">
+              <p className="text-xl font-black text-white">{value}</p>
+              <p className="text-[10px] text-blue-100">{icon} {label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="px-5 pt-5 space-y-5">
-        {/* Requests section */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-gray-900">My Requests</h2>
+      {/* Quick Actions */}
+      <div className="px-4 pt-4">
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <button
+            onClick={() => navigate("/business")}
+            className="card-press flex flex-col items-center gap-1.5 bg-violet-50 border border-violet-100 rounded-2xl p-3 text-violet-600"
+          >
+            <span className="text-xl">🏢</span>
+            <span className="text-[10px] font-bold">My Business</span>
+          </button>
+          <button
+            onClick={() => navigate("/bookmarks")}
+            className="card-press flex flex-col items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-2xl p-3 text-amber-600"
+          >
+            <span className="text-xl">🔖</span>
+            <span className="text-[10px] font-bold">Saved ({bookmarked.size})</span>
+          </button>
+          <button
+            onClick={() => navigate("/messages")}
+            className="card-press flex flex-col items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-2xl p-3 text-emerald-600"
+          >
+            <span className="text-xl">💬</span>
+            <span className="text-[10px] font-bold">Messages</span>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+          {(["active", "completed"] as const).map((t) => (
             <button
-              onClick={() => navigate("/request")}
-              className="text-xs font-semibold text-blue-500"
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold capitalize transition-all ${
+                activeTab === t ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"
+              }`}
             >
-              + New
+              {t === "active" ? `Active (${activeRequests.length})` : `History (${completedRequests.length})`}
             </button>
-          </div>
+          ))}
+        </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-3">
-            {(["active", "completed"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                  activeTab === tab
-                    ? "bg-gray-900 text-white"
-                    : "bg-white text-gray-500 border border-gray-200"
-                }`}
-              >
-                {tab === "active" ? `Active (${activeRequests.length})` : `History (${completedRequests.length})`}
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            {displayRequests.length === 0 ? (
-              <div className="text-center py-10 text-gray-400">
-                <p className="text-3xl mb-2">📋</p>
-                <p className="text-sm font-medium text-gray-500">No {activeTab} requests</p>
-              </div>
-            ) : (
-              displayRequests.map((req) => (
-                <div
-                  key={req.id}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        {/* Request Cards */}
+        <div className="space-y-3">
+          {displayRequests.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+              <p className="text-3xl mb-2">{activeTab === "active" ? "📋" : "✅"}</p>
+              <p className="font-bold text-gray-500 text-sm">
+                {activeTab === "active" ? "No active requests" : "No completed jobs yet"}
+              </p>
+              {activeTab === "active" && (
+                <button
+                  onClick={() => navigate("/request")}
+                  className="mt-4 bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl"
                 >
+                  Book a Service
+                </button>
+              )}
+            </div>
+          ) : (
+            displayRequests.map((req) => {
+              const provider = providers.find((p) => p.id === req.providerId);
+              const stepIdx = PROGRESS_STEPS.indexOf(req.status);
+              return (
+                <div key={req.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                   <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{req.category}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{req.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{req.categoryId}</span>
+                      <p className="text-sm font-bold text-gray-900 mt-0.5 line-clamp-2">{req.description}</p>
                     </div>
                     <span
-                      className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ml-3"
-                      style={{
-                        backgroundColor: `${getStatusColor(req.status)}18`,
-                        color: getStatusColor(req.status),
-                      }}
+                      className="ml-2 px-2.5 py-1 rounded-full text-[10px] font-black flex-shrink-0"
+                      style={{ backgroundColor: getStatusColor(req.status) + "20", color: getStatusColor(req.status) }}
                     >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: getStatusColor(req.status) }}
-                      />
                       {getStatusLabel(req.status)}
                     </span>
                   </div>
 
-                  {/* Progress tracker for active requests */}
-                  {req.status !== "completed" && req.status !== "cancelled" && (
-                    <div className="mb-3">
-                      <div className="flex items-center">
-                        {PROGRESS_STEPS.map((step, i) => {
-                          const currentIdx = getStepIndex(req.status);
-                          const isPast = i <= currentIdx;
-                          const isLast = i === PROGRESS_STEPS.length - 1;
-                          return (
-                            <div key={step} className="flex items-center flex-1 last:flex-none">
-                              <div
-                                className={`w-3 h-3 rounded-full flex-shrink-0 transition-colors ${
-                                  isPast ? "bg-blue-500" : "bg-gray-200"
-                                }`}
-                              />
-                              {!isLast && (
-                                <div
-                                  className={`flex-1 h-0.5 transition-colors ${
-                                    i < currentIdx ? "bg-blue-500" : "bg-gray-200"
-                                  }`}
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="flex justify-between mt-1.5">
-                        {PROGRESS_STEPS.map((step) => (
-                          <span key={step} className="text-[9px] text-gray-400 capitalize">
-                            {step.replace("_", " ")}
-                          </span>
-                        ))}
+                  {provider && (
+                    <div className="flex items-center gap-2 mb-3 bg-gray-50 rounded-xl p-2.5">
+                      <img src={provider.imageUrl} alt={provider.name} className="w-8 h-8 rounded-xl object-cover" />
+                      <div>
+                        <p className="text-xs font-bold text-gray-800">{provider.businessName || provider.name}</p>
+                        <p className="text-[10px] text-gray-400 capitalize">{provider.category}</p>
                       </div>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    {req.provider ? (
-                      <div className="flex items-center gap-1.5">
-                        <img
-                          src={req.provider.imageUrl}
-                          alt={req.provider.name}
-                          className="w-5 h-5 rounded-full object-cover"
-                        />
-                        <span>{req.provider.name}</span>
+                  {/* Progress Bar */}
+                  {req.status !== "cancelled" && (
+                    <div className="mb-3">
+                      <div className="flex gap-0.5 mb-1">
+                        {PROGRESS_STEPS.slice(0, 5).map((step, i) => (
+                          <div
+                            key={step}
+                            className={`h-1.5 flex-1 rounded-full transition-all ${i <= stepIdx ? "bg-blue-500" : "bg-gray-100"}`}
+                          />
+                        ))}
                       </div>
-                    ) : (
-                      <span className="italic text-gray-400">Matching provider...</span>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {req.estimatedCost && (
-                        <span className="font-semibold text-gray-600">~${req.estimatedCost}</span>
-                      )}
-                      <span>{req.date}</span>
+                      <p className="text-[10px] text-gray-400 text-center">{getStatusLabel(req.status)}</p>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Inspection fee */}
+                  {req.inspectionFee && req.status === "pending" && (
+                    <div className="bg-amber-50 rounded-xl px-3 py-2 mb-3">
+                      <p className="text-xs text-amber-700">
+                        Inspection fee: <strong>{formatCurrency(req.inspectionFee)}</strong> — charged when pro visits to assess
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Quote */}
+                  {req.quote && req.status === "quote_provided" && !req.quoteAccepted && (
+                    <div className="bg-blue-50 rounded-xl p-3 mb-3">
+                      <p className="text-sm font-black text-blue-800 mb-2">
+                        Quote received: {formatCurrency(req.quote)}
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAcceptQuote(req.id)}
+                          className="flex-1 bg-blue-500 text-white text-xs font-black py-2.5 rounded-xl active:scale-[0.98] transition-transform"
+                        >
+                          Accept Quote
+                        </button>
+                        <button
+                          onClick={() => updateRequest(req.id, { status: "cancelled" })}
+                          className="flex-1 border border-gray-200 text-gray-600 text-xs font-semibold py-2.5 rounded-xl"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment */}
+                  {req.status === "completed" && req.paymentStatus !== "paid" && req.quote && (
+                    <button
+                      onClick={() => navigate(`/payment/${req.id}`)}
+                      className="w-full bg-emerald-500 text-white font-black py-3 rounded-xl text-sm mb-2 shadow-sm active:scale-[0.98] transition-transform"
+                    >
+                      Pay {formatCurrency(req.quote)}
+                    </button>
+                  )}
+                  {req.paymentStatus === "paid" && (
+                    <div className="bg-emerald-50 rounded-xl px-3 py-2">
+                      <p className="text-xs text-emerald-700 font-bold text-center">✓ Payment complete</p>
+                    </div>
+                  )}
+
+                  {provider && (
+                    <button
+                      onClick={() => navigate(`/provider/${provider.id}`)}
+                      className="mt-2 w-full border border-gray-100 text-gray-500 text-xs font-semibold py-2 rounded-xl active:bg-gray-50"
+                    >
+                      View Business →
+                    </button>
+                  )}
                 </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* New request CTA */}
-        <button
-          onClick={() => navigate("/request")}
-          className="w-full bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-sm shadow-blue-200 text-sm active:scale-[0.98] transition-transform"
-        >
-          + New Service Request
-        </button>
-
-        {/* Settings */}
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          {[
-            { label: "Edit Profile", icon: "👤" },
-            { label: "Notifications", icon: "🔔" },
-            { label: "Payment Methods", icon: "💳" },
-            { label: "Help & Support", icon: "🛟" },
-          ].map(({ label, icon }) => (
-            <button
-              key={label}
-              className="w-full flex items-center justify-between px-4 py-4 border-b border-gray-50 last:border-0 active:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-3 text-sm font-medium text-gray-700">
-                <span>{icon}</span>
-                {label}
-              </div>
-              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ))}
-        </section>
-
-        {/* Sign out */}
-        <button
-          onClick={handleSignOut}
-          className="w-full border-2 border-red-100 text-red-500 font-semibold py-4 rounded-2xl text-sm active:bg-red-50 transition-colors"
-        >
-          Sign Out
-        </button>
+              );
+            })
+          )}
+        </div>
+        <div className="h-4" />
       </div>
     </div>
   );

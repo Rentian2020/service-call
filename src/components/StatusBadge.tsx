@@ -1,5 +1,5 @@
+import { getStatusLabel, getStatusColor } from "../utilities/mockData";
 import type { ServiceRequestStatus } from "../types";
-import { getStatusColor, getStatusLabel } from "../utilities/mockData";
 
 interface StatusBadgeProps {
   status: ServiceRequestStatus;
@@ -8,13 +8,11 @@ interface StatusBadgeProps {
 export const StatusBadge = ({ status }: StatusBadgeProps) => {
   const color = getStatusColor(status);
   const label = getStatusLabel(status);
-
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-      style={{ backgroundColor: `${color}15`, color }}
+      className="px-2.5 py-1 rounded-full text-[10px] font-black"
+      style={{ backgroundColor: `${color}20`, color }}
     >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </span>
   );

@@ -14,15 +14,24 @@ export interface ServiceCategory {
 export interface ServiceProvider {
   id: string;
   name: string;
-  category: string;
+  category: string;        // primary category (for backward compat)
+  categories?: string[];   // multiple categories
   rating: number;
   reviewCount: number;
-  hourlyRate: number;
+  inspectionFee: number;
   available: boolean;
   location: string;
   distanceMiles: number;
   imageUrl: string;
   specialties: string[];
+  ownerUid?: string;
+  businessName?: string;
+  description?: string;
+  phone?: string;
+  website?: string;
+  latitude?: number;
+  longitude?: number;
+  providerType?: "individual" | "business";
 }
 
 export interface ServiceRequest {
@@ -37,11 +46,17 @@ export interface ServiceRequest {
   scheduledAt?: Date;
   address: string;
   estimatedCost?: number;
+  inspectionFee?: number;
+  quote?: number;
+  quoteAccepted?: boolean;
+  paymentStatus?: "pending" | "paid" | "refunded";
 }
 
 export type ServiceRequestStatus =
   | "pending"
   | "accepted"
+  | "inspection"
+  | "quote_provided"
   | "en_route"
   | "in_progress"
   | "completed"
@@ -61,5 +76,48 @@ export interface Bookmark {
   id: string;
   userId: string;
   providerId: string;
+  createdAt: Date;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  createdAt: Date;
+  read: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  userId: string;
+  providerId: string;
+  providerName: string;
+  providerImage: string;
+  lastMessage: string;
+  lastMessageAt: Date;
+  unreadCount: number;
+}
+
+export interface Payment {
+  id: string;
+  requestId: string;
+  userId: string;
+  providerId: string;
+  amount: number;
+  status: "pending" | "completed" | "failed" | "refunded";
+  method?: string;
+  createdAt: Date;
+}
+
+export interface Review {
+  id: string;
+  providerId: string;
+  userId: string;
+  userName: string;
+  userPhoto?: string;
+  rating: number; // 1-5
+  comment: string;
   createdAt: Date;
 }
