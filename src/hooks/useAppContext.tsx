@@ -63,7 +63,9 @@ interface AppContextValue {
   // Reviews
   reviews: Review[];
   addReview: (r: Omit<Review, "id" | "createdAt">) => void;
+  updateReview: (id: string, updates: Pick<Review, "rating" | "comment">) => void;
   getProviderReviews: (providerId: string) => Review[];
+  getUserReviewForProvider: (providerId: string, userId: string) => Review | undefined;
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -98,7 +100,9 @@ const AppContext = createContext<AppContextValue>({
   processPayment: async () => false,
   reviews: [],
   addReview: () => {},
+  updateReview: () => {},
   getProviderReviews: () => [],
+  getUserReviewForProvider: () => undefined,
 });
 
 export const AppProvider = ({ children }: PropsWithChildren) => {
@@ -134,6 +138,8 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
 
   // Auto-detect location on mount
   useEffect(() => {
+    const GOOGLE_MAPS_API = import.meta.env.VITE_GOOGLE_MAPS_API as string | undefined;
+
     if (!navigator.geolocation) {
       setLocation("New York, NY");
       setLocationDetecting(false);
@@ -145,15 +151,31 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         setUserLat(latitude);
         setUserLng(longitude);
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-          );
-          const data = await res.json();
-          const city = data.address?.city || data.address?.town || data.address?.village || "";
-          const state = data.address?.state || "";
-          const country = data.address?.country_code?.toUpperCase() || "";
-          const label = [city, state, country].filter(Boolean).join(", ") || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
-          setLocation(label);
+          let label = "";
+          if (GOOGLE_MAPS_API) {
+            const res = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&result_type=locality|administrative_area_level_1&key=${GOOGLE_MAPS_API}`
+            );
+            const data = await res.json();
+            if (data.results?.[0]) {
+              const comps = data.results[0].address_components as Array<{ long_name: string; short_name: string; types: string[] }>;
+              const city = comps.find(c => c.types.includes("locality"))?.long_name || "";
+              const state = comps.find(c => c.types.includes("administrative_area_level_1"))?.short_name || "";
+              const country = comps.find(c => c.types.includes("country"))?.short_name || "";
+              label = [city, state, country].filter(Boolean).join(", ");
+            }
+          }
+          if (!label) {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+            );
+            const data = await res.json();
+            const city = data.address?.city || data.address?.town || data.address?.village || "";
+            const state = data.address?.state || "";
+            const country = data.address?.country_code?.toUpperCase() || "";
+            label = [city, state, country].filter(Boolean).join(", ");
+          }
+          setLocation(label || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`);
         } catch {
           setLocation(`${latitude.toFixed(3)}, ${longitude.toFixed(3)}`);
         }
@@ -289,20 +311,45 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       id: `rev-${Date.now()}`,
       createdAt: new Date(),
     };
-    setReviews((prev) => [review, ...prev]);
+    setReviews((prev) => {
+      // Enforce one review per user per provider — if exists, replace
+      const filtered = prev.filter(rv => !(rv.providerId === r.providerId && rv.userId === r.userId));
+      return [review, ...filtered];
+    });
     // Recalculate provider rating
     setProviders((prev) =>
       prev.map((p) => {
         if (p.id !== r.providerId) return p;
-        const provReviews = [...reviews.filter(rv => rv.providerId === r.providerId), review];
+        const provReviews = [...reviews.filter(rv => rv.providerId === r.providerId && rv.userId !== r.userId), review];
         const avgRating = provReviews.reduce((sum, rv) => sum + rv.rating, 0) / provReviews.length;
         return { ...p, rating: Math.round(avgRating * 10) / 10, reviewCount: provReviews.length };
       })
     );
   }, [reviews]);
 
+  const updateReview = useCallback((id: string, updates: Pick<Review, "rating" | "comment">) => {
+    setReviews((prev) => prev.map((r) => r.id === id ? { ...r, ...updates } : r));
+    // Recalculate provider rating after edit
+    setReviews((prev) => {
+      const updated = prev.find(r => r.id === id);
+      if (!updated) return prev;
+      const providerId = updated.providerId;
+      const provReviews = prev.map(r => r.id === id ? { ...r, ...updates } : r).filter(r => r.providerId === providerId);
+      setProviders((p) => p.map((prov) => {
+        if (prov.id !== providerId) return prov;
+        const avg = provReviews.reduce((s, rv) => s + rv.rating, 0) / provReviews.length;
+        return { ...prov, rating: Math.round(avg * 10) / 10 };
+      }));
+      return prev.map(r => r.id === id ? { ...r, ...updates } : r);
+    });
+  }, []);
+
   const getProviderReviews = useCallback((providerId: string) => {
     return reviews.filter((r) => r.providerId === providerId);
+  }, [reviews]);
+
+  const getUserReviewForProvider = useCallback((providerId: string, userId: string) => {
+    return reviews.find((r) => r.providerId === providerId && r.userId === userId);
   }, [reviews]);
 
   return (
@@ -339,7 +386,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         processPayment,
         reviews,
         addReview,
+        updateReview,
         getProviderReviews,
+        getUserReviewForProvider,
       }}
     >
       {children}

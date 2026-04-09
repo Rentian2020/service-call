@@ -148,7 +148,7 @@ export const Discover = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-3 pb-4">
+          <div className="space-y-3 pb-4 stagger-children">
             {sorted.map((provider) => (
               <ProviderCard
                 key={provider.id}

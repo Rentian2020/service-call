@@ -62,7 +62,7 @@ export const ProviderCard = ({
     return (
       <div
         onClick={() => onClick(provider)}
-        className="card-press bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100"
+        className="card-press hover-lift bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 transition-all duration-200"
         style={{ width: "192px" }}
       >
         <div className="relative h-28 bg-gray-100">
@@ -125,7 +125,7 @@ export const ProviderCard = ({
   return (
     <div
       onClick={() => onClick(provider)}
-      className="card-press bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex gap-3 p-3"
+      className="card-press hover-lift bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex gap-3 p-3 transition-all duration-200"
     >
       <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
         <img src={provider.imageUrl} alt={displayName} className="w-full h-full object-cover" loading="lazy" />

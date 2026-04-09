@@ -58,7 +58,7 @@ export const BottomNav = () => {
           to="/"
           end
           className={({ isActive }) =>
-            `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all ${isActive ? "text-blue-600" : "text-gray-400"}`
+            `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all active:scale-90 ${isActive ? "text-blue-600 bg-blue-50" : "text-gray-400 hover:text-gray-600"}`
           }
         >
           {({ isActive }) => (
@@ -73,7 +73,7 @@ export const BottomNav = () => {
         <NavLink
           to="/discover"
           className={({ isActive }) =>
-            `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all ${isActive ? "text-blue-600" : "text-gray-400"}`
+            `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all active:scale-90 ${isActive ? "text-blue-600 bg-blue-50" : "text-gray-400 hover:text-gray-600"}`
           }
         >
           {({ isActive }) => (
@@ -120,7 +120,7 @@ export const BottomNav = () => {
           <NavLink
             to="/business"
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all ${isActive ? "text-violet-600" : "text-gray-400"}`
+              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all active:scale-90 ${isActive ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-gray-600"}`
             }
           >
             {({ isActive }) => (

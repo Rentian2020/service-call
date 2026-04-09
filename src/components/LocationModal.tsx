@@ -118,18 +118,24 @@ export const LocationModal = ({ onClose }: LocationModalProps) => {
         const { latitude, longitude } = pos.coords;
         setUserCoords(latitude, longitude);
         try {
-          // Try Google Maps reverse geocoding first
+          // Try Google Maps reverse geocoding first — extract city/state/country
           if (GOOGLE_MAPS_API) {
             const res = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API}`
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&result_type=locality|administrative_area_level_1&key=${GOOGLE_MAPS_API}`
             );
             const data = await res.json();
             if (data.results?.[0]) {
-              const formatted = data.results[0].formatted_address;
-              setLocation(formatted);
-              setLocating(false);
-              handleClose();
-              return;
+              const comps = data.results[0].address_components as Array<{ long_name: string; short_name: string; types: string[] }>;
+              const city = comps.find((c: { types: string[] }) => c.types.includes("locality"))?.long_name || "";
+              const state = comps.find((c: { types: string[] }) => c.types.includes("administrative_area_level_1"))?.short_name || "";
+              const country = comps.find((c: { types: string[] }) => c.types.includes("country"))?.short_name || "";
+              const label = [city, state, country].filter(Boolean).join(", ");
+              if (label) {
+                setLocation(label);
+                setLocating(false);
+                handleClose();
+                return;
+              }
             }
           }
           // Fallback: Nominatim

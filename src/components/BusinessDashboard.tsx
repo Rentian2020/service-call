@@ -23,6 +23,7 @@ const EMPTY_FORM = {
   phone: "",
   website: "",
   location: "",
+  locationType: "area" as "exact" | "area",  // exact address vs service area
   inspectionFee: "",
   specialties: "",
   available: true,
@@ -129,6 +130,7 @@ export const BusinessDashboard = () => {
       phone: p.phone ?? "",
       website: p.website ?? "",
       location: p.location,
+      locationType: (p.latitude && p.longitude) ? "exact" : "area",
       inspectionFee: String(p.inspectionFee),
       specialties: p.specialties.join(", "),
       available: p.available,
@@ -205,25 +207,37 @@ export const BusinessDashboard = () => {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         try {
-          let label = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          let label = "";
           if (GOOGLE_MAPS_API) {
-            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API}`);
+            // Use reverse geocoding — extract city, state, country components
+            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&result_type=locality|administrative_area_level_1&key=${GOOGLE_MAPS_API}`);
             const data = await res.json();
-            if (data.results?.[0]) label = data.results[0].formatted_address;
-          } else {
+            if (data.results?.[0]) {
+              const comps = data.results[0].address_components as Array<{ long_name: string; short_name: string; types: string[] }>;
+              const city = comps.find(c => c.types.includes("locality"))?.long_name || "";
+              const state = comps.find(c => c.types.includes("administrative_area_level_1"))?.short_name || "";
+              const country = comps.find(c => c.types.includes("country"))?.short_name || "";
+              label = [city, state, country].filter(Boolean).join(", ");
+            }
+          }
+          if (!label) {
+            // Fallback: Nominatim
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
             const data = await res.json();
-            const city = data.address?.city || data.address?.town || "";
+            const city = data.address?.city || data.address?.town || data.address?.village || "";
             const state = data.address?.state || "";
             const country = data.address?.country_code?.toUpperCase() || "";
-            label = [city, state, country].filter(Boolean).join(", ") || label;
+            label = [city, state, country].filter(Boolean).join(", ");
           }
+          if (!label) label = `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+
           setForm((prev) => ({ ...prev, location: label, _lat: latitude, _lng: longitude } as typeof prev));
           setUserCoords(latitude, longitude);
           setAppLocation(label);
           setFormErrors((prev) => ({ ...prev, location: "" }));
         } catch {
-          setForm((prev) => ({ ...prev, location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, _lat: latitude, _lng: longitude } as typeof prev));
+          const fallback = `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+          setForm((prev) => ({ ...prev, location: fallback, _lat: latitude, _lng: longitude } as typeof prev));
         }
         setLocating(false);
       },
@@ -255,8 +269,9 @@ export const BusinessDashboard = () => {
     if (!validateForm() || !user) return;
     const specialtiesArr = form.specialties.split(",").map((s) => s.trim()).filter(Boolean);
     const formAny = form as typeof form & { _lat?: number; _lng?: number };
-    const lat = formAny._lat ? Number(formAny._lat) : undefined;
-    const lng = formAny._lng ? Number(formAny._lng) : undefined;
+    // Only pin exact coordinates for fixed-address businesses
+    const lat = (form.locationType === "exact" && formAny._lat) ? Number(formAny._lat) : undefined;
+    const lng = (form.locationType === "exact" && formAny._lng) ? Number(formAny._lng) : undefined;
     const primaryCategory = form.categories[0] ?? "";
     const websiteUrl = form.website.trim() ? (form.website.startsWith("http") ? form.website.trim() : `https://${form.website.trim()}`) : undefined;
 
@@ -407,18 +422,27 @@ export const BusinessDashboard = () => {
                         })}
                       </div>
                     </div>
-                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${p.available ? "bg-emerald-400" : "bg-gray-300"}`} />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); updateProvider(p.id, { available: !p.available }); }}
+                      title={p.available ? "Click to set as Busy" : "Click to set as Available"}
+                      className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${p.available ? "bg-emerald-500" : "bg-gray-300"}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${p.available ? "translate-x-6" : "translate-x-0"}`} />
+                    </button>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
                     <span>📍 {p.location}</span>
                     <span className="text-gray-200">·</span>
                     <span>💰 {formatCurrency(p.inspectionFee)} fee</span>
+                    <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${p.available ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                      {p.available ? "Active" : "Paused"}
+                    </span>
                   </div>
                   {p.phone && <p className="text-xs text-gray-500 mb-1">📞 {p.phone}</p>}
                   {p.website && <p className="text-xs text-blue-500 mb-1 truncate">🌐 {p.website}</p>}
                   <div className="flex gap-2 mt-3">
-                    <button onClick={() => handleEdit(p)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 active:bg-gray-50">Edit</button>
-                    <button onClick={() => setConfirmDelete(p.id)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-500 bg-red-50 active:bg-red-100">Delete</button>
+                    <button onClick={() => handleEdit(p)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 active:bg-gray-50 transition-colors">Edit</button>
+                    <button onClick={() => setConfirmDelete(p.id)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-500 bg-red-50 active:bg-red-100 transition-colors">Delete</button>
                   </div>
                 </div>
               );
@@ -522,15 +546,31 @@ export const BusinessDashboard = () => {
             {formErrors.website && <p className="text-xs text-red-500 mt-1">{formErrors.website}</p>}
           </div>
 
-          {/* Location with Google Maps autocomplete */}
+          {/* Location with type selector + Google Maps autocomplete */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <label className="text-xs font-bold text-gray-500 block mb-1.5">Service Area <span className="text-red-400">*</span></label>
+            <label className="text-xs font-bold text-gray-500 block mb-2">Location <span className="text-red-400">*</span></label>
+
+            {/* Location type toggle */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {([
+                ["area", "🗺️", "Service Area", "City/region — customers come to you"],
+                ["exact", "📌", "Exact Address", "Fixed shop or storefront"],
+              ] as const).map(([val, icon, label, desc]) => (
+                <button key={val} type="button" onClick={() => handleChange("locationType", val)}
+                  className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl text-left transition-all ${form.locationType === val ? "bg-violet-50 border-2 border-violet-400" : "bg-gray-50 border-2 border-transparent"}`}>
+                  <span className="text-base">{icon}</span>
+                  <span className={`text-xs font-bold ${form.locationType === val ? "text-violet-700" : "text-gray-700"}`}>{label}</span>
+                  <span className="text-[10px] text-gray-400 leading-tight">{desc}</span>
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-2 relative">
               <div className="flex-1 relative">
                 <input value={form.location}
                   onChange={(e) => handleLocationInputChange(e.target.value)}
                   onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
-                  placeholder="e.g. Brooklyn, NY or London, UK"
+                  placeholder={form.locationType === "area" ? "e.g. Brooklyn, NY or London, UK" : "e.g. 123 Main St, New York, NY"}
                   className={`w-full bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-700 border focus:bg-white transition-colors ${formErrors.location ? "border-red-300 bg-red-50" : "border-gray-100 focus:border-violet-300"}`} />
                 {locationSuggestionsLoading && <div className="absolute right-3 top-3.5 w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />}
                 {showLocationSuggestions && locationSuggestions.length > 0 && (
@@ -544,7 +584,7 @@ export const BusinessDashboard = () => {
                   </div>
                 )}
               </div>
-              <button onClick={handleDetectLocation} disabled={locating}
+              <button onClick={handleDetectLocation} disabled={locating} type="button"
                 className={`w-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${locating ? "bg-gray-100" : "bg-violet-50 border border-violet-200 active:bg-violet-100"}`} title="Detect my location">
                 {locating ? (
                   <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
@@ -558,9 +598,13 @@ export const BusinessDashboard = () => {
             {formErrors.location ? (
               <p className="text-xs text-red-500 mt-1">{formErrors.location}</p>
             ) : (
-              <p className="text-xs text-gray-400 mt-1">Enter City, State/Country or use GPS.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {form.locationType === "area"
+                  ? "Customers will see your city/region. Distance is approximate."
+                  : "Your exact address helps customers find you on the map."}
+              </p>
             )}
-            {!GOOGLE_MAPS_API && <p className="text-xs text-amber-500 mt-1">⚠ Add VITE_GOOGLE_MAPS_API for location autocomplete.</p>}
+            {!GOOGLE_MAPS_API && <p className="text-xs text-amber-500 mt-1">⚠ Add VITE_GOOGLE_MAPS_API for autocomplete.</p>}
           </div>
 
           {/* Specialties */}
@@ -582,12 +626,21 @@ export const BusinessDashboard = () => {
           {/* Available toggle */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-gray-800">Available for work</p>
-              <p className="text-xs text-gray-400">Toggle to pause or activate your listing</p>
+              <p className="text-sm font-bold text-gray-800">Available for Work</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {form.available ? "🟢 Your listing is active and accepting jobs" : "⏸️ Listing paused — customers can't book you"}
+              </p>
             </div>
-            <button onClick={() => handleChange("available", !form.available)}
-              className={`w-12 h-6 rounded-full transition-colors relative ${form.available ? "bg-violet-500" : "bg-gray-300"}`}>
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.available ? "translate-x-6" : "translate-x-0.5"}`} />
+            <button
+              type="button"
+              onClick={() => handleChange("available", !form.available)}
+              role="switch"
+              aria-checked={form.available}
+              className={`relative w-14 h-7 rounded-full transition-colors duration-200 flex-shrink-0 focus:outline-none ${form.available ? "bg-emerald-500" : "bg-gray-300"}`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 ${form.available ? "translate-x-7" : "translate-x-0"}`}
+              />
             </button>
           </div>
 

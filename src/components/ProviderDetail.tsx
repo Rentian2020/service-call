@@ -35,7 +35,7 @@ const StarRating = ({ value, onChange }: { value: number; onChange: (v: number) 
 export const ProviderDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isBookmarked, toggleBookmark, providers, getOrCreateConversation, userLat, userLng, getProviderReviews, addReview } = useAppContext();
+  const { isBookmarked, toggleBookmark, providers, getOrCreateConversation, userLat, userLng, getProviderReviews, addReview, updateReview, getUserReviewForProvider } = useAppContext();
   const { user } = useAuth();
   const [imgError, setImgError] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -43,6 +43,7 @@ export const ProviderDetail = () => {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [isEditingReview, setIsEditingReview] = useState(false);
 
   const provider = providers.find((p) => p.id === id);
 
@@ -67,6 +68,7 @@ export const ProviderDetail = () => {
   const bookmarked = isBookmarked(provider.id);
   const distance = user ? calcDist(provider.latitude, provider.longitude, userLat, userLng) : null;
   const providerReviews = getProviderReviews(provider.id);
+  const userExistingReview = user ? getUserReviewForProvider(provider.id, user.uid) : undefined;
 
   const handleMessage = () => {
     if (!user) { navigate("/account"); return; }
@@ -84,19 +86,41 @@ export const ProviderDetail = () => {
       setReviewError("Please write a comment before submitting.");
       return;
     }
-    addReview({
-      providerId: provider.id,
-      userId: user.uid,
-      userName: user.displayName || "Anonymous",
-      userPhoto: user.photoURL || undefined,
-      rating: reviewRating,
-      comment: reviewComment.trim(),
-    });
+    if (isEditingReview && userExistingReview) {
+      updateReview(userExistingReview.id, { rating: reviewRating, comment: reviewComment.trim() });
+    } else {
+      addReview({
+        providerId: provider.id,
+        userId: user.uid,
+        userName: user.displayName || "Anonymous",
+        userPhoto: user.photoURL || undefined,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+    }
     setReviewSubmitted(true);
     setShowReviewForm(false);
+    setIsEditingReview(false);
     setReviewComment("");
     setReviewRating(5);
     setReviewError("");
+  };
+
+  const handleOpenEditReview = () => {
+    if (!userExistingReview) return;
+    setReviewRating(userExistingReview.rating);
+    setReviewComment(userExistingReview.comment);
+    setIsEditingReview(true);
+    setShowReviewForm(true);
+    setReviewSubmitted(false);
+  };
+
+  const handleOpenNewReview = () => {
+    setReviewRating(5);
+    setReviewComment("");
+    setIsEditingReview(false);
+    setShowReviewForm(true);
+    setReviewSubmitted(false);
   };
 
   const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(provider.businessName || provider.name)}&background=7c3aed&color=fff&size=400`;
@@ -291,29 +315,38 @@ export const ProviderDetail = () => {
               Reviews {providerReviews.length > 0 && <span className="text-gray-400 font-normal">({providerReviews.length})</span>}
             </h3>
             {user && !showReviewForm && (
-              <button
-                onClick={() => setShowReviewForm(true)}
-                className="text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-xl active:bg-blue-100 transition-colors"
-              >
-                + Write Review
-              </button>
+              userExistingReview ? (
+                <button
+                  onClick={handleOpenEditReview}
+                  className="text-xs font-bold text-violet-500 bg-violet-50 px-3 py-1.5 rounded-xl active:bg-violet-100 transition-colors flex items-center gap-1"
+                >
+                  ✏️ Edit Review
+                </button>
+              ) : (
+                <button
+                  onClick={handleOpenNewReview}
+                  className="text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-xl active:bg-blue-100 transition-colors"
+                >
+                  + Write Review
+                </button>
+              )
             )}
           </div>
 
           {/* Review submitted confirmation */}
           {reviewSubmitted && (
-            <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center gap-2">
+            <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center gap-2 animate-scale-in">
               <span className="text-lg">✅</span>
-              <p className="text-xs font-bold text-emerald-700">Your review has been posted!</p>
+              <p className="text-xs font-bold text-emerald-700">{isEditingReview ? "Review updated!" : "Your review has been posted!"}</p>
             </div>
           )}
 
           {/* Review Form */}
           {showReviewForm && (
-            <div className="mb-4 bg-gray-50 rounded-2xl p-4 border border-gray-100">
-              <p className="text-xs font-bold text-gray-700 mb-2">Your Rating</p>
+            <div className="mb-4 bg-gray-50 rounded-2xl p-4 border border-gray-100 animate-scale-in">
+              <p className="text-xs font-bold text-gray-700 mb-1">{isEditingReview ? "Update Your Rating" : "Your Rating"}</p>
               <StarRating value={reviewRating} onChange={setReviewRating} />
-              <p className="text-xs font-bold text-gray-700 mt-3 mb-1.5">Your Review</p>
+              <p className="text-xs font-bold text-gray-700 mt-3 mb-1.5">{isEditingReview ? "Update Your Review" : "Your Review"}</p>
               <textarea
                 value={reviewComment}
                 onChange={(e) => { setReviewComment(e.target.value); setReviewError(""); }}
@@ -324,16 +357,16 @@ export const ProviderDetail = () => {
               {reviewError && <p className="text-xs text-red-500 mt-1">{reviewError}</p>}
               <div className="flex gap-2 mt-3">
                 <button
-                  onClick={() => { setShowReviewForm(false); setReviewError(""); }}
+                  onClick={() => { setShowReviewForm(false); setReviewError(""); setIsEditingReview(false); }}
                   className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmitReview}
-                  className="flex-1 py-2.5 bg-blue-500 text-white rounded-xl text-xs font-black"
+                  className="flex-1 py-2.5 bg-blue-500 text-white rounded-xl text-xs font-black active:scale-[0.98] transition-transform"
                 >
-                  Submit Review
+                  {isEditingReview ? "Update Review" : "Submit Review"}
                 </button>
               </div>
             </div>
@@ -357,7 +390,7 @@ export const ProviderDetail = () => {
           ) : (
             <div className="space-y-3">
               {providerReviews.map((review) => (
-                <div key={review.id} className="bg-gray-50 rounded-2xl p-3.5">
+                <div key={review.id} className={`rounded-2xl p-3.5 transition-colors ${user && review.userId === user.uid ? "bg-blue-50 border border-blue-100" : "bg-gray-50"}`}>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {review.userPhoto ? (
@@ -367,15 +400,25 @@ export const ProviderDetail = () => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-800 truncate">{review.userName}</p>
-                      <p className="text-[10px] text-gray-400">{review.createdAt.toLocaleDateString()}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-gray-800 truncate">{review.userName}</p>
+                        {user && review.userId === user.uid && (
+                          <span className="text-[9px] font-black bg-blue-200 text-blue-700 px-1.5 py-0.5 rounded-full">YOU</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-400">{review.createdAt instanceof Date ? review.createdAt.toLocaleDateString() : new Date(review.createdAt).toLocaleDateString()}</p>
                     </div>
-                    <div className="flex gap-0.5 flex-shrink-0">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <svg key={star} className={`w-3.5 h-3.5 ${star <= review.rating ? "text-amber-400" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <svg key={star} className={`w-3.5 h-3.5 ${star <= review.rating ? "text-amber-400" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        ))}
+                      </div>
+                      {user && review.userId === user.uid && !showReviewForm && (
+                        <button onClick={handleOpenEditReview} className="ml-1 text-[10px] text-blue-500 font-bold px-1.5 py-0.5 rounded bg-blue-50 active:bg-blue-100">Edit</button>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-gray-600 leading-relaxed">{review.comment}</p>
