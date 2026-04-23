@@ -7,6 +7,7 @@
 - Homeowners needing urgent or scheduled services (e.g., plumbing, electrical, cleaning)
 - Business owners managing property maintenance
 - Local service providers offering blue-collar services
+- And this
 
 ## Value Proposition
 A fast, reliable way to connect users with the right local service professionals exactly when they need them, eliminating endless searching and uncertainty.
