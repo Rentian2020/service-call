@@ -50,6 +50,18 @@ export interface ServiceRequest {
   quote?: number;
   quoteAccepted?: boolean;
   paymentStatus?: "pending" | "paid" | "refunded";
+  /** Set when a specific helper is selected or a helper claims an open request (for rules & sync). */
+  providerOwnerUid?: string | null;
+  /** App-reported user location string when the request was created (e.g. city, ST). */
+  capturedLocationLabel?: string;
+  /** Browser geolocation at time of request. */
+  requestLat?: number;
+  requestLng?: number;
+  /** Copy of profile / auth (denormalized for dashboard display). */
+  customerEmail?: string;
+  customerName?: string;
+  /** From the request form. */
+  urgency?: "scheduled" | "urgent";
 }
 
 export type ServiceRequestStatus =

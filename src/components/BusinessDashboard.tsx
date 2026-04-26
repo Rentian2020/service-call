@@ -306,14 +306,14 @@ export const BusinessDashboard = () => {
     if (!req) return;
     const action = getHelperAdvanceAction(req);
     if (!action) return;
-    updateRequest(reqId, { status: action.nextStatus, updatedAt: new Date() });
+    void updateRequest(reqId, { status: action.nextStatus, updatedAt: new Date() });
     notifyCustomerAboutJob(req.userId, action.customerTitle, action.customerBody, reqId);
   };
 
   const handleSendQuote = (reqId: string) => {
     const amount = Number(quoteForms[reqId]);
     if (!amount || amount <= 0) return;
-    updateRequest(reqId, { quote: amount, status: "quote_provided", updatedAt: new Date() });
+    void updateRequest(reqId, { quote: amount, status: "quote_provided", updatedAt: new Date() });
     const req = requests.find(r => r.id === reqId);
     if (req) addNotification({ userId: req.userId, title: "Quote Received!", body: `You've received a quote of ${formatCurrency(amount)} for your service request.`, read: false, requestId: reqId });
     setQuoteForms(prev => { const n = { ...prev }; delete n[reqId]; return n; });
@@ -325,11 +325,12 @@ export const BusinessDashboard = () => {
       return;
     }
     const activeListing = myListings.find((l) => l.available) ?? myListings[0];
-    updateRequest(reqId, {
+    void updateRequest(reqId, {
       providerId: activeListing.id,
       status: "accepted",
       updatedAt: new Date(),
       inspectionFee: activeListing.inspectionFee,
+      providerOwnerUid: activeListing.ownerUid,
     });
     const req = requests.find((r) => r.id === reqId);
     if (req) {

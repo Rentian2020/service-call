@@ -4,6 +4,8 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   type PropsWithChildren,
 } from "react";
 import type {
@@ -15,6 +17,14 @@ import type {
   Payment,
   Review,
 } from "../types";
+import { useAuth } from "./useAuth";
+import { isFirebaseConfigured } from "../services/firebase";
+import {
+  createServiceRequest,
+  subscribeServiceRequests,
+  updateServiceRequestDocument,
+} from "../services/serviceRequestFirestore";
+import { updateUserLastKnownLocation } from "../services/userProfileService";
 
 interface AppContextValue {
   // Bookmarks
@@ -53,8 +63,8 @@ interface AppContextValue {
 
   // Requests
   requests: ServiceRequest[];
-  addRequest: (r: ServiceRequest) => void;
-  updateRequest: (id: string, updates: Partial<ServiceRequest>) => void;
+  addRequest: (r: ServiceRequest) => Promise<string>;
+  updateRequest: (id: string, updates: Partial<ServiceRequest>) => Promise<void>;
 
   // Payments
   payments: Payment[];
@@ -94,8 +104,8 @@ const AppContext = createContext<AppContextValue>({
   getOrCreateConversation: () => "",
   totalUnreadMessages: 0,
   requests: [],
-  addRequest: () => {},
-  updateRequest: () => {},
+  addRequest: async () => "",
+  updateRequest: async () => {},
   payments: [],
   processPayment: async () => false,
   reviews: [],
@@ -133,6 +143,7 @@ const loadStoredRequests = (): ServiceRequest[] => {
 };
 
 export const AppProvider = ({ children }: PropsWithChildren) => {
+  const { user } = useAuth();
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [location, setLocation] = useState("Detecting location…");
   const [userLat, setUserLat] = useState(40.7128);
@@ -143,9 +154,34 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const [providers, setProviders] = useState<ServiceProvider[]>(() => loadStoredProviders());
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
-  const [requests, setRequests] = useState<ServiceRequest[]>(() => loadStoredRequests());
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const locationSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const ownedProviderIds = useMemo(
+    () => (user ? providers.filter((p) => p.ownerUid === user.uid).map((p) => p.id) : []),
+    [providers, user]
+  );
+  const ownedProviderIdsKey = useMemo(() => ownedProviderIds.join(","), [ownedProviderIds]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setRequests(loadStoredRequests());
+      return;
+    }
+    if (!user) {
+      setRequests(loadStoredRequests());
+    }
+  }, [isFirebaseConfigured, user?.uid]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user) {
+      return;
+    }
+    const unsub = subscribeServiceRequests(user.uid, ownedProviderIds, setRequests);
+    return unsub;
+  }, [isFirebaseConfigured, user, ownedProviderIdsKey, ownedProviderIds]);
 
   const toggleBookmark = (id: string) => {
     setBookmarked((prev) => {
@@ -226,12 +262,35 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   }, [providers]);
 
   useEffect(() => {
+    if (isFirebaseConfigured && user) {
+      return;
+    }
     try {
       localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(requests));
     } catch {
       // ignore localStorage errors
     }
-  }, [requests]);
+  }, [requests, isFirebaseConfigured, user]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user || !locationDetected) {
+      return;
+    }
+    if (location === "Detecting location…") {
+      return;
+    }
+    if (locationSyncTimer.current) {
+      clearTimeout(locationSyncTimer.current);
+    }
+    locationSyncTimer.current = setTimeout(() => {
+      void updateUserLastKnownLocation(user.uid, { label: location, lat: userLat, lng: userLng });
+    }, 4000);
+    return () => {
+      if (locationSyncTimer.current) {
+        clearTimeout(locationSyncTimer.current);
+      }
+    };
+  }, [isFirebaseConfigured, user, locationDetected, location, userLat, userLng]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -318,15 +377,33 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
 
   const totalUnreadMessages = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
-  const addRequest = useCallback((r: ServiceRequest) => {
-    setRequests((prev) => [r, ...prev]);
-  }, []);
+  const addRequest = useCallback(
+    async (r: ServiceRequest) => {
+      if (isFirebaseConfigured && user) {
+        return createServiceRequest({
+          ...r,
+          userId: user.uid,
+          customerEmail: r.customerEmail ?? user.email ?? undefined,
+          customerName: r.customerName ?? user.displayName ?? undefined,
+        });
+      }
+      setRequests((prev) => [r, ...prev]);
+      return r.id;
+    },
+    [isFirebaseConfigured, user]
+  );
 
-  const updateRequest = useCallback((id: string, updates: Partial<ServiceRequest>) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
-    );
-  }, []);
+  const updateRequest = useCallback(
+    async (id: string, updates: Partial<ServiceRequest>) => {
+      const next: Partial<ServiceRequest> = { ...updates, updatedAt: updates.updatedAt ?? new Date() };
+      if (isFirebaseConfigured && user) {
+        await updateServiceRequestDocument(id, next);
+        return;
+      }
+      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...next } as ServiceRequest : r)));
+    },
+    [isFirebaseConfigured, user]
+  );
 
   const processPayment = useCallback(
     async (requestId: string, userId: string, providerId: string, amount: number): Promise<boolean> => {
@@ -342,7 +419,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         createdAt: new Date(),
       };
       setPayments((prev) => [payment, ...prev]);
-      updateRequest(requestId, { paymentStatus: "paid", status: "completed" });
+      await updateRequest(requestId, { paymentStatus: "paid", status: "completed" });
       return true;
     },
     [updateRequest]
