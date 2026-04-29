@@ -7,6 +7,10 @@ vi.mock("./firebase", () => ({
   isFirebaseConfigured: true,
 }));
 
+vi.mock("./userProfileService", () => ({
+  syncUserProfile: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("firebase/auth", () => ({
   signInWithPopup: vi.fn(),
   signOut: vi.fn(),
@@ -14,6 +18,7 @@ vi.mock("firebase/auth", () => ({
 }));
 
 import { signInWithGoogle, signOut, mapFirebaseUser, onAuthChange } from "./authService";
+import { waitFor } from "@testing-library/react";
 import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
 
 const mockFirebaseUser: FirebaseUser = {
@@ -76,15 +81,17 @@ describe("signOut", () => {
 describe("onAuthChange", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls callback with mapped user when firebase user is present", () => {
+  it("calls callback with mapped user when firebase user is present", async () => {
     vi.mocked(onAuthStateChanged).mockImplementation((_auth, cb) => {
       (cb as (u: FirebaseUser) => void)(mockFirebaseUser);
       return vi.fn();
     });
     const callback = vi.fn();
     onAuthChange(callback);
-    expect(callback).toHaveBeenCalledWith(
-      expect.objectContaining({ uid: "uid-123", email: "jane@example.com" })
+    await waitFor(() =>
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({ uid: "uid-123", email: "jane@example.com" })
+      )
     );
   });
 

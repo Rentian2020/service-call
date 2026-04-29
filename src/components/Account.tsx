@@ -165,7 +165,7 @@ export const Account = () => {
   const displayRequests = activeTab === "active" ? activeRequests : completedRequests;
 
   const handleAcceptQuote = (requestId: string) => {
-    updateRequest(requestId, { status: "en_route", quoteAccepted: true, updatedAt: new Date() });
+    void updateRequest(requestId, { status: "en_route", quoteAccepted: true, updatedAt: new Date() });
     const req = requests.find((r) => r.id === requestId);
     const helper = req ? providers.find((p) => p.id === req.providerId) : undefined;
     if (helper?.ownerUid) {
@@ -180,7 +180,7 @@ export const Account = () => {
   };
 
   const handleConfirmJobComplete = (requestId: string) => {
-    updateRequest(requestId, { status: "completed", updatedAt: new Date() });
+    void updateRequest(requestId, { status: "completed", updatedAt: new Date() });
     const req = requests.find((r) => r.id === requestId);
     const helper = req ? providers.find((p) => p.id === req.providerId) : undefined;
     if (helper?.ownerUid) {
@@ -397,7 +397,7 @@ export const Account = () => {
                           Accept Quote
                         </button>
                         <button
-                          onClick={() => updateRequest(req.id, { status: "cancelled" })}
+                          onClick={() => void updateRequest(req.id, { status: "cancelled" })}
                           className="flex-1 border border-gray-200 text-gray-600 text-xs font-semibold py-2.5 rounded-xl"
                         >
                           Decline

@@ -33,7 +33,15 @@ const GOOGLE_MAPS_API = import.meta.env.VITE_GOOGLE_MAPS_API;
 export const Request = () => {
   const navigate = useNavigate();
   const locationState = useLocation();
-  const { location: userLocation, providers, addRequest, addNotification } = useAppContext();
+  const {
+    location: userLocation,
+    userLat,
+    userLng,
+    locationDetecting: appLocLoading,
+    providers,
+    addRequest,
+    addNotification,
+  } = useAppContext();
   const { user } = useAuth();
 
   const preselectedProviderId =
@@ -103,8 +111,14 @@ export const Request = () => {
   const handleSubmit = async () => {
     if (!user) { navigate("/account"); return; }
     setLoading(true);
-    await new Promise((res) => setTimeout(res, 1200));
+    await new Promise((res) => setTimeout(res, 800));
     const isOpenRequest = form.openToAnyHelper || !selectedProvider;
+    const locationLabel =
+      !appLocLoading && userLocation && userLocation !== "Detecting location…" ? userLocation : undefined;
+    const scheduledAt =
+      form.urgency === "scheduled" && form.scheduledDate
+        ? new Date(`${form.scheduledDate}T12:00:00`)
+        : undefined;
     const newRequest: ServiceRequest = {
       id: `req-${Date.now()}`,
       userId: user.uid,
@@ -116,16 +130,25 @@ export const Request = () => {
       updatedAt: new Date(),
       address: form.address,
       inspectionFee: isOpenRequest ? undefined : selectedProvider?.inspectionFee,
+      providerOwnerUid:
+        !isOpenRequest && selectedProvider?.ownerUid ? selectedProvider.ownerUid : null,
+      capturedLocationLabel: locationLabel,
+      requestLat: userLat,
+      requestLng: userLng,
+      urgency: form.urgency,
+      scheduledAt,
+      customerEmail: user.email ?? undefined,
+      customerName: user.displayName ?? undefined,
     };
-    addRequest(newRequest);
+    const requestId = await addRequest(newRequest);
     addNotification({
       userId: user.uid,
       title: isOpenRequest ? "Open Request Posted!" : "Request Posted!",
       body: isOpenRequest
         ? "Your request is now live. Nearby helpers can respond."
-        : `Your request has been sent to ${selectedProvider.businessName || selectedProvider.name}.`,
+        : `Your request has been sent to ${selectedProvider?.businessName || selectedProvider?.name || "the helper"}.`,
       read: false,
-      requestId: newRequest.id,
+      requestId,
     });
     setLoading(false);
     setSubmitted(true);
