@@ -20,7 +20,6 @@ import type {
 } from "../types";
 import { db, isFirebaseConfigured } from "../services/firebase";
 import { useAuth } from "./useAuth";
-import { isFirebaseConfigured } from "../services/firebase";
 import {
   createServiceRequest,
   subscribeServiceRequests,
@@ -257,14 +256,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       { timeout: 8000, enableHighAccuracy: false }
     );
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PROVIDERS_STORAGE_KEY, JSON.stringify(providers));
-    } catch {
-      // ignore localStorage errors
-    }
-  }, [providers]);
 
   useEffect(() => {
     if (isFirebaseConfigured && user) {
